@@ -1,3 +1,6 @@
+import json
+import click
+
 from awscrt import mqtt
 from awsiot import mqtt_connection_builder
 from logging import basicConfig, getLogger, DEBUG
@@ -7,11 +10,13 @@ from signal import signal, SIGTERM, SIGINT
 from threading import Event
 from uuid import uuid4
 
-# specify some default values
-MQTT_ENDPOINT = "a3pdeg88222nmq-ats.iot.us-east-1.amazonaws.com"
-CLIENT_ID = f"4esttech-device-client-{uuid4()}"
-TOPIC_NAME = "4esttech/device-commands"
+# certificates are loaded relative to the current file's directory
 DIR_PATH = path.abspath(path.dirname(__file__))
+
+# names of files that contain the relevant certificates
+DEVICE_CERTIFICATE_FILENAME = "device.pem"
+DEVICE_KEY_FILENAME = "device_rsa"
+AWS_ROOT_CA = "AmazonRootCA1.pem"
 
 # setup logger
 basicConfig(level=DEBUG)
@@ -76,49 +81,93 @@ def new_mqtt_connection(
     )
 
 
-if __name__ == "__main__":
+def _connect(endpoint: str, client_prefix: str):
+    try:
+        client_id = f"{client_prefix}-{uuid4()}"
+        LOG.debug(
+            "Connecting to '%(endpoint)s using client ID '%(client_id)s'",
+            {"endpoint": endpoint, "client_id": client_id},
+        )
+
+        connection = new_mqtt_connection(
+            aws_mqtt_endpoint=endpoint,
+            client_id=client_id,
+            dev_cert_filename="device.pem",
+            dev_key_filename="device_rsa",
+            ca_filename="AmazonRootCA1.pem",
+        )
+        con_future = connection.connect()
+        con_future.result()
+
+        LOG.info("Connected.")
+        return connection
+    except Exception as e:
+        LOG.fatal("Couldn't connect to MQTT endpoint", exc_info=e)
+        return False
+
+
+def _subscribe(connection, topic):
+    LOG.debug("Subscribing to topic '%(topic)s' ...", {"topic": topic})
+    try:
+        subscribe_future, _ = connection.subscribe(
+            topic=topic, qos=mqtt.QoS.AT_LEAST_ONCE, callback=on_message_received
+        )
+        result = subscribe_future.result()
+        LOG.info(
+            "Subscribed to %(topic)s with %(qos)s.",
+            {"topic": topic, "qos": result["qos"]},
+        )
+    except Exception as e:
+        LOG.exception("Failed to subscribe to topic", exc_info=e)
+
+
+def _disconnect(connection):
+    LOG.info("Disconnecting from MQTT broker")
+    try:
+        con_future = connection.disconnect()
+        con_future.result()
+        LOG.info("Disconnected.")
+    except Exception as e:
+        LOG.exception("Failed to disconnect properly", exc_info=e)
+
+
+@click.command()
+@click.option(
+    "--endpoint", "-e", type=click.STRING, help="AWS MQTT endpoint for your thing"
+)
+@click.option(
+    "--client-prefix",
+    "-p",
+    type=click.STRING,
+    help="Prefix the client ID with this string",
+    default="test",
+)
+@click.option(
+    "--topic",
+    "-t",
+    type=click.STRING,
+    help="Topic to subscribe to",
+    default="test/commands",
+)
+def cli(endpoint, client_prefix, topic):
     _STOP = Event()
 
     def _stop_program(_, __):
-        global _STOP
+        nonlocal _STOP
         if not _STOP.is_set():
             _STOP.set()
 
     signal(SIGINT, _stop_program)
     signal(SIGTERM, _stop_program)
-
-    connection = new_mqtt_connection(
-        aws_mqtt_endpoint=MQTT_ENDPOINT,
-        client_id=CLIENT_ID,
-        dev_cert_filename="device.pem",
-        dev_key_filename="device_rsa",
-        ca_filename="AmazonRootCA1.pem",
-    )
     LOG.info("Subscriber sample. Hit Ctrl-C to exit.")
 
-    LOG.debug(
-        "connecting to '%(endpoint)s using client ID '%(client_id)s'",
-        {"endpoint": MQTT_ENDPOINT, "client_id": CLIENT_ID},
-    )
-    try:
-        con_future = connection.connect()
-        con_future.result()
-        LOG.info("connected")
-        LOG.debug("Subscribing to topic '%(topic)s' ...", {"topic": TOPIC_NAME})
+    connection = _connect(endpoint, client_prefix)
+    if not connection:
+        return
+    _subscribe(connection, topic)
+    _STOP.wait()
+    _disconnect(connection)
 
-        subscribe_future, packet_id = connection.subscribe(
-            topic=TOPIC_NAME, qos=mqtt.QoS.AT_LEAST_ONCE, callback=on_message_received
-        )
-        result = subscribe_future.result()
-        LOG.debug("subscribed with %(qos)s.", {"qos": result["qos"]})
 
-        _STOP.wait()  # wait here until someone hits Ctrl-C
-
-        con_future = connection.disconnect()
-        con_future.result()
-        LOG.info("Disconnected.")
-
-    except Exception as e:
-        LOG.fatal("AWS IoT publish failed!", exc_info=e)
-    finally:
-        LOG.info("done")
+if __name__ == "__main__":
+    cli(auto_envvar_prefix="MQTT_SUBSCRIBER")
