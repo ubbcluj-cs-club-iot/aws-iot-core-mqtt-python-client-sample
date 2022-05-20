@@ -59,7 +59,14 @@ def new_mqtt_connection(
     help="Topic to subscribe to",
     default="test/commands",
 )
-def cli(endpoint, client_prefix, topic):
+@click.option(
+    "--count",
+    "-n",
+    type=click.INT,
+    help="Number of messages to publish",
+    default=10
+)
+def cli(endpoint, client_prefix, topic, count):
     client_id = f"{client_prefix}-{uuid4()}"
     connection = new_mqtt_connection(
         aws_mqtt_endpoint=endpoint,
@@ -77,7 +84,7 @@ def cli(endpoint, client_prefix, topic):
         future.result()
         LOG.info("connected")
 
-        for i in range(1, 11):
+        for i in range(1, count+1):
             rand = random()
             temperature = 23.0 - rand if (i % 2) == 0 else 23.0 + rand
             humidity = 150.0 + 3.14 * rand
