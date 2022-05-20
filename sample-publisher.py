@@ -1,3 +1,4 @@
+import click
 import json
 
 from awscrt import mqtt
@@ -8,11 +9,14 @@ from random import random
 from time import sleep
 from uuid import uuid4
 
-# specify some default values
-MQTT_ENDPOINT = "a3pdeg88222nmq-ats.iot.us-east-1.amazonaws.com"
-CLIENT_ID = f"4esttech-device-client-{uuid4()}"
-TOPIC_NAME = "4esttech/device-messages"
+
+# certificate paths will be computed relative to current file dir
 DIR_PATH = path.abspath(path.dirname(__file__))
+
+# names of files that contain the relevant certificates
+DEVICE_CERTIFICATE_FILENAME = "device.pem"
+DEVICE_KEY_FILENAME = "device_rsa"
+AWS_ROOT_CA = "AmazonRootCA1.pem"
 
 # setup logger
 basicConfig(level=DEBUG)
@@ -20,11 +24,11 @@ LOG = getLogger(__name__)
 
 
 def new_mqtt_connection(
+    aws_mqtt_endpoint: str,
     client_id: str,
     dev_cert_filename: str,
     dev_key_filename: str,
     ca_filename: str,
-    aws_mqtt_endpoint: str,
 ):
     return mqtt_connection_builder.mtls_from_path(
         endpoint=aws_mqtt_endpoint,
@@ -37,38 +41,61 @@ def new_mqtt_connection(
     )
 
 
-if __name__ == "__main__":
+@click.command()
+@click.option(
+    "--endpoint", "-e", type=click.STRING, help="AWS MQTT endpoint for your thing"
+)
+@click.option(
+    "--client-prefix",
+    "-p",
+    type=click.STRING,
+    help="Prefix the client ID with this string",
+    default="test",
+)
+@click.option(
+    "--topic",
+    "-t",
+    type=click.STRING,
+    help="Topic to subscribe to",
+    default="test/commands",
+)
+def cli(endpoint, client_prefix, topic):
+    client_id = f"{client_prefix}-{uuid4()}"
     connection = new_mqtt_connection(
-        aws_mqtt_endpoint=MQTT_ENDPOINT,
-        client_id=CLIENT_ID,
-        dev_cert_filename="device.pem",
-        dev_key_filename="device_rsa",
-        ca_filename="AmazonRootCA1.pem",
+        aws_mqtt_endpoint=endpoint,
+        client_id=client_id,
+        dev_cert_filename=DEVICE_CERTIFICATE_FILENAME,
+        dev_key_filename=DEVICE_KEY_FILENAME,
+        ca_filename=AWS_ROOT_CA,
     )
     LOG.debug(
         "connecting to '%(endpoint)s using client ID '%(client_id)s'",
-        {"endpoint": MQTT_ENDPOINT, "client_id": CLIENT_ID},
+        {"endpoint": endpoint, "client_id": client_id},
     )
     try:
         future = connection.connect()
         future.result()
         LOG.info("connected")
 
-        for i in range(1, 10):
+        for i in range(1, 11):
             rand = random()
             temperature = 23.0 - rand if (i % 2) == 0 else 23.0 + rand
             humidity = 150.0 + 3.14 * rand
             connection.publish(
-                topic=TOPIC_NAME,
+                topic=topic,
                 payload=json.dumps({"temperature": temperature, "humidity": humidity}),
                 qos=mqtt.QoS.AT_LEAST_ONCE,  # quality of service
             )
             LOG.debug(
                 "published message #%(index)d on '%(topic)s",
-                {"index": i + 1, "topic": TOPIC_NAME},
+                {"index": i, "topic": topic},
             )
             sleep(1)
     except Exception as e:
         LOG.fatal("AWS IoT publish failed!", exc_info=e)
     finally:
         LOG.info("done")
+
+
+if __name__ == "__main__":
+    cli()
