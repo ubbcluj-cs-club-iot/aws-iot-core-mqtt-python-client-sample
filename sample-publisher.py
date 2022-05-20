@@ -105,4 +105,4 @@ def cli(endpoint, client_prefix, topic, count):
 
 
 if __name__ == "__main__":
-    cli()
+    cli(auto_envvar_prefix="MQTT_PUBLISHER")
