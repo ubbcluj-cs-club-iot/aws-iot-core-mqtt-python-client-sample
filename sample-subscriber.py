@@ -24,12 +24,12 @@ LOG = getLogger(__name__)
 
 
 # Callback when connection is accidentally lost.
-def on_connection_interrupted(_, error, **kwargs):
+def _on_connection_interrupted(_, error, **kwargs):
     LOG.error("Connection interrupted", exc_info=error)
 
 
 # Callback when an interrupted connection is re-established.
-def on_connection_resumed(connection, return_code, session_present, **kwargs):
+def _on_connection_resumed(connection, return_code, session_present, **kwargs):
     LOG.debug(
         "Connection resumed. return_code: {} session_present: {}".format(
             return_code, session_present
@@ -44,10 +44,10 @@ def on_connection_resumed(connection, return_code, session_present, **kwargs):
 
         # Cannot synchronously wait for resubscribe result because we're on the connection's event-loop thread,
         # evaluate result with a callback instead.
-        resubscribe_future.add_done_callback(on_resubscribe_complete)
+        resubscribe_future.add_done_callback(_on_resubscribe_complete)
 
 
-def on_resubscribe_complete(resubscribe_future):
+def _on_resubscribe_complete(resubscribe_future):
     resubscribe_results = resubscribe_future.result()
     print("Resubscribe results: {}".format(resubscribe_results))
 
@@ -56,12 +56,12 @@ def on_resubscribe_complete(resubscribe_future):
             exit("Server rejected resubscribe to topic: {}".format(topic))
 
 
-def on_message_received(topic, payload, dup, qos, retain, **kwargs):
+def _on_message_received(topic, payload, dup, qos, retain, **kwargs):
     LOG.info("received message on topic %s", topic)
     pprint(json.loads(payload))
 
 
-def new_mqtt_connection(
+def _new_mqtt_connection(
     client_id: str,
     dev_cert_filename: str,
     dev_key_filename: str,
@@ -73,8 +73,8 @@ def new_mqtt_connection(
         cert_filepath=path.join(DIR_PATH, dev_cert_filename),
         pri_key_filepath=path.join(DIR_PATH, dev_key_filename),
         ca_filepath=path.join(DIR_PATH, ca_filename),
-        on_connection_interrupted=on_connection_interrupted,
-        on_connection_resumed=on_connection_resumed,
+        on_connection_interrupted=_on_connection_interrupted,
+        on_connection_resumed=_on_connection_resumed,
         client_id=client_id,
         clean_session=True,
         keep_alive_secs=10,
@@ -89,7 +89,7 @@ def _connect(endpoint: str, client_prefix: str):
             {"endpoint": endpoint, "client_id": client_id},
         )
 
-        connection = new_mqtt_connection(
+        connection = _new_mqtt_connection(
             aws_mqtt_endpoint=endpoint,
             client_id=client_id,
             dev_cert_filename="device.pem",
@@ -110,7 +110,7 @@ def _subscribe(connection, topic):
     LOG.debug("Subscribing to topic '%(topic)s' ...", {"topic": topic})
     try:
         subscribe_future, _ = connection.subscribe(
-            topic=topic, qos=mqtt.QoS.AT_LEAST_ONCE, callback=on_message_received
+            topic=topic, qos=mqtt.QoS.AT_LEAST_ONCE, callback=_on_message_received
         )
         result = subscribe_future.result()
         LOG.info(
