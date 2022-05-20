@@ -23,7 +23,7 @@ basicConfig(level=DEBUG)
 LOG = getLogger(__name__)
 
 
-def new_mqtt_connection(
+def _new_mqtt_connection(
     aws_mqtt_endpoint: str,
     client_id: str,
     dev_cert_filename: str,
@@ -68,7 +68,7 @@ def new_mqtt_connection(
 )
 def cli(endpoint, client_prefix, topic, count):
     client_id = f"{client_prefix}-{uuid4()}"
-    connection = new_mqtt_connection(
+    connection = _new_mqtt_connection(
         aws_mqtt_endpoint=endpoint,
         client_id=client_id,
         dev_cert_filename=DEVICE_CERTIFICATE_FILENAME,
