@@ -19,14 +19,6 @@ basicConfig(level=DEBUG)
 LOG = getLogger(__name__)
 
 
-def on_connection_interrupted(*args):
-    print(args)
-
-
-def on_connection_resumed(*args):
-    print(args)
-
-
 def new_mqtt_connection(
     client_id: str,
     dev_cert_filename: str,
@@ -39,8 +31,6 @@ def new_mqtt_connection(
         cert_filepath=path.join(DIR_PATH, dev_cert_filename),
         pri_key_filepath=path.join(DIR_PATH, dev_key_filename),
         ca_filepath=path.join(DIR_PATH, ca_filename),
-        on_connection_interrupted=on_connection_interrupted,
-        on_connection_resumed=on_connection_resumed,
         client_id=client_id,
         clean_session=True,
         keep_alive_secs=10,
