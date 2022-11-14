@@ -26,11 +26,11 @@ this script looks like this:
 
 ```shell
 $ poetry run sample-publisher \
-    --endpoint "<prefix>-ats.iot.<region>.amazonaws.com
-    --client-prefix "some-client-id-prefix-your-certificate-has-access-to"
-    --topic "some-topic-your-certificate-has-access-to"
-    --count "number-of-messages-to-publish"
-    -C "directory-where-the-certificates-are-stored"
+    --endpoint "<prefix>-ats.iot.<region>.amazonaws.com \
+    --client-prefix "some-client-id-prefix-your-certificate-has-access-to" \
+    --topic "some-topic-your-certificate-has-access-to" \
+    --count "number-of-messages-to-publish" \
+    -C "directory-where-the-certificates-are-stored" \
     -m "message to publish"
 ```
 
@@ -40,8 +40,9 @@ Prints out whatever comes in through the topics matching the specified
 topic filter. Supports reconnecting in case of connection interruption.
 
 ```shell
-python sample-publisher.py \
-    --endpoint "<prefix>-ats.iot.<region>.amazonaws.com
-    --client-prefix "some-client-id-prefix-your-certificate-has-access-to"
-    --topic "some-topic-filter-your-certificate-has-access-to"
+poetry run sample-subscriber \
+    --endpoint "<prefix>-ats.iot.<region>.amazonaws.com \
+    --client-prefix "some-client-id-prefix-your-certificate-has-access-to" \
+    --topic "some-topic-filter-your-certificate-has-access-to" \
+    -C "directory-containing-the-IoT-Thing-certificates"
 ```

@@ -1,6 +1,6 @@
 """Publish a message to an MQTT topic"""
 import json
-from logging import basicConfig, getLogger, DEBUG
+from logging import DEBUG, basicConfig, getLogger
 from os import path
 from time import sleep
 from uuid import uuid4
@@ -9,7 +9,6 @@ import click
 from awscrt import mqtt
 from awscrt.exceptions import AwsCrtError
 from awsiot import mqtt_connection_builder
-
 
 # certificate paths will be computed relative to current file dir
 DIR_PATH = path.abspath(path.dirname(__file__))

@@ -1,14 +1,15 @@
 import json
-import click
-
-from awscrt import mqtt
-from awsiot import mqtt_connection_builder
-from logging import basicConfig, getLogger, DEBUG
+from logging import DEBUG, basicConfig, getLogger
 from os import path
 from pprint import pprint
-from signal import signal, SIGTERM, SIGINT
+from signal import SIGINT, SIGTERM, signal
+import sys
 from threading import Event
 from uuid import uuid4
+
+import click
+from awscrt import mqtt
+from awsiot import mqtt_connection_builder
 
 # certificates are loaded relative to the current file's directory
 DIR_PATH = path.abspath(path.dirname(__file__))
@@ -31,9 +32,9 @@ def _on_connection_interrupted(_, error, **kwargs):
 # Callback when an interrupted connection is re-established.
 def _on_connection_resumed(connection, return_code, session_present, **kwargs):
     LOG.debug(
-        "Connection resumed. return_code: {} session_present: {}".format(
-            return_code, session_present
-        )
+        "Connection resumed. return_code: %d session_present: %d",
+        return_code,
+        session_present,
     )
 
     if return_code == mqtt.ConnectReturnCode.ACCEPTED and not session_present:
@@ -49,11 +50,12 @@ def _on_connection_resumed(connection, return_code, session_present, **kwargs):
 
 def _on_resubscribe_complete(resubscribe_future):
     resubscribe_results = resubscribe_future.result()
-    print("Resubscribe results: {}".format(resubscribe_results))
+    print(f"Resubscribe results: {resubscribe_results}")
 
     for topic, qos in resubscribe_results["topics"]:
         if qos is None:
-            exit("Server rejected resubscribe to topic: {}".format(topic))
+            LOG.warning("Server rejected resubscribe to topic: '%s'", topic)
+            sys.exit(1)
 
 
 def _on_message_received(topic, payload, dup, qos, retain, **kwargs):
@@ -63,16 +65,16 @@ def _on_message_received(topic, payload, dup, qos, retain, **kwargs):
 
 def _new_mqtt_connection(
     client_id: str,
-    dev_cert_filename: str,
-    dev_key_filename: str,
-    ca_filename: str,
+    cert_path: str,
+    private_key_path: str,
+    root_ca_path: str,
     aws_mqtt_endpoint: str,
 ):
     return mqtt_connection_builder.mtls_from_path(
         endpoint=aws_mqtt_endpoint,
-        cert_filepath=path.join(DIR_PATH, dev_cert_filename),
-        pri_key_filepath=path.join(DIR_PATH, dev_key_filename),
-        ca_filepath=path.join(DIR_PATH, ca_filename),
+        cert_filepath=cert_path,
+        pri_key_filepath=private_key_path,
+        ca_filepath=root_ca_path,
         on_connection_interrupted=_on_connection_interrupted,
         on_connection_resumed=_on_connection_resumed,
         client_id=client_id,
@@ -81,7 +83,7 @@ def _new_mqtt_connection(
     )
 
 
-def _connect(endpoint: str, client_prefix: str):
+def _connect(endpoint: str, client_prefix: str, cert_dir: str):
     try:
         client_id = f"{client_prefix}-{uuid4()}"
         LOG.debug(
@@ -92,17 +94,17 @@ def _connect(endpoint: str, client_prefix: str):
         connection = _new_mqtt_connection(
             aws_mqtt_endpoint=endpoint,
             client_id=client_id,
-            dev_cert_filename="device.pem",
-            dev_key_filename="device_rsa",
-            ca_filename="AmazonRootCA1.pem",
+            cert_path=path.join(cert_dir, "cert.pem"),
+            private_key_path=path.join(cert_dir, "private.key"),
+            root_ca_path=path.join(cert_dir, "AmazonRootCA1.pem"),
         )
         con_future = connection.connect()
         con_future.result()
 
         LOG.info("Connected.")
         return connection
-    except Exception as e:
-        LOG.fatal("Couldn't connect to MQTT endpoint", exc_info=e)
+    except Exception as exc:  # pylint: disable=broad-except
+        LOG.fatal("Couldn't connect to MQTT endpoint", exc_info=exc)
         return False
 
 
@@ -117,8 +119,8 @@ def _subscribe(connection, topic):
             "Subscribed to %(topic)s with %(qos)s.",
             {"topic": topic, "qos": result["qos"]},
         )
-    except Exception as e:
-        LOG.exception("Failed to subscribe to topic", exc_info=e)
+    except Exception as exc:  # pylint: disable=broad-except
+        LOG.exception("Failed to subscribe to topic", exc_info=exc)
 
 
 def _disconnect(connection):
@@ -127,8 +129,8 @@ def _disconnect(connection):
         con_future = connection.disconnect()
         con_future.result()
         LOG.info("Disconnected.")
-    except Exception as e:
-        LOG.exception("Failed to disconnect properly", exc_info=e)
+    except Exception as exc:  # pylint: disable=broad-except
+        LOG.exception("Failed to disconnect properly", exc_info=exc)
 
 
 @click.command()
@@ -149,23 +151,31 @@ def _disconnect(connection):
     help="Topic to subscribe to",
     default="test/commands",
 )
-def cli(endpoint, client_prefix, topic):
-    _STOP = Event()
+@click.option(
+    "--cert-dir",
+    "-C",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
+    help="Directory containing AWS IoT Core certificates",
+    default=DIR_PATH,
+)
+def cli(endpoint, client_prefix, topic, cert_dir):
+    """Subscribe to an MQTT topic hosted on AWS IoT Core."""
+    cancel_subscription = Event()
 
     def _stop_program(_, __):
-        nonlocal _STOP
-        if not _STOP.is_set():
-            _STOP.set()
+        nonlocal cancel_subscription
+        if not cancel_subscription.is_set():
+            cancel_subscription.set()
 
     signal(SIGINT, _stop_program)
     signal(SIGTERM, _stop_program)
     LOG.info("Subscriber sample. Hit Ctrl-C to exit.")
 
-    connection = _connect(endpoint, client_prefix)
+    connection = _connect(endpoint, client_prefix, cert_dir)
     if not connection:
         return
     _subscribe(connection, topic)
-    _STOP.wait()
+    cancel_subscription.wait()
     _disconnect(connection)
 
 
