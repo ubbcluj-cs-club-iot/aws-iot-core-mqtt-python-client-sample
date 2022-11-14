@@ -8,16 +8,20 @@ exclude = '''
   |\.sh
   |\.git
   |\.ini
+  |\.venv
   |Dockerfile
   |Jenkinfile
 )/
 '''
 
 [tool.poetry]
-name = "aws_iot_sdk_sample"
+name = "aws-iot-core-mqtt-python-client-sample"
 version = "0.1.0"
 description = "A sample showcasing basic usage of AWS IoT Core"
 authors = ["Andrei Olar <andrei.olar@samlex.ro>"]
+packages = [
+  { include = "aws_iot_core_mqtt_python_client_sample" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -27,6 +31,10 @@ click = "^8.1.3"
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
 pre-commit = "^2.19.0"
+
+[tool.poetry.scripts]
+sample-publisher = 'aws_iot_core_mqtt_python_client_sample.sample_publisher:cli'
+sample-subscriber = 'aws_iot_core_mqtt_python_client_sample.sample_subscriber:cli'
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
