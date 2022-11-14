@@ -13,9 +13,9 @@ with the `--help` argument.
 Both of these scripts require placing the following files in the
 same directory where the scripts are located:
 
-* `device_rsa` - the device's private key - typically generated
+* `private.key` - the device's private key - typically generated
   when creating a new AWS IoT Core thing
-* `device.pem` - the device's certificate - typically generated
+* `cert.pem` - the device's certificate - typically generated
   when creating a new AWS IoT Core thing
 * `AmazonRootCA1.pem` - Amazon [root certificate](https://www.amazontrust.com/repository/AmazonRootCA1.pem)
 
@@ -25,11 +25,13 @@ Publishes fake temperature and humidity readings. A basic call to
 this script looks like this:
 
 ```shell
-python sample-publisher.py \
+$ poetry run sample-publisher \
     --endpoint "<prefix>-ats.iot.<region>.amazonaws.com
     --client-prefix "some-client-id-prefix-your-certificate-has-access-to"
     --topic "some-topic-your-certificate-has-access-to"
     --count "number-of-messages-to-publish"
+    -C "directory-where-the-certificates-are-stored"
+    -m "message to publish"
 ```
 
 ## Subscriber
