@@ -116,7 +116,7 @@ def _subscribe(connection, topic):
         )
         result = subscribe_future.result()
         LOG.info(
-            "Subscribed to %(topic)s with %(qos)s.",
+            "Subscribed to %(topic)s with %(qos)s QoS.",
             {"topic": topic, "qos": result["qos"]},
         )
     except Exception as exc:  # pylint: disable=broad-except
