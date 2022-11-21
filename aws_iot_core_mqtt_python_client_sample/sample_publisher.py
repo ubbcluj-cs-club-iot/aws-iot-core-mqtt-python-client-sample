@@ -91,13 +91,13 @@ def cli(endpoint, client_prefix, topic, count, cert_dir, message):
         root_ca_path=path.join(cert_dir, AWS_ROOT_CA),
     )
     LOG.debug(
-        "connecting to '%(endpoint)s using client ID '%(client_id)s'",
+        "connecting to '%(endpoint)s' using client ID '%(client_id)s'",
         {"endpoint": endpoint, "client_id": client_id},
     )
     try:
         future = connection.connect()
         future.result()
-        LOG.info("connected")
+        LOG.info("connected to '%s'", endpoint)
     except AwsCrtError as ace:
         LOG.fatal("could not connect to AWS IoT Core", exc_info=ace)
         return
