@@ -1,4 +1,4 @@
-
+sample-commands.sh
 **/*.pem
 **/*.key
 certs/
